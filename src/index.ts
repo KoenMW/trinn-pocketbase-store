@@ -1,4 +1,4 @@
-import PocketBase, { type RecordModel } from "pocketbase";
+import PocketBase, { RecordListOptions, type RecordModel } from "pocketbase";
 import { writable } from "svelte/store";
 
 const ERROR_CREATE_PB =
@@ -7,6 +7,21 @@ const ERROR_AUTH =
   "Something went wrong during login of pocketbase. Please check your credentials";
 const ERROR_INIT =
   "Please initialize the library first using PBWritable.init before using any method";
+
+export type ListTransform<T extends any[]> = (r: RecordModel) => T[number];
+export type Transform<T> = (r: RecordModel) => T;
+
+function castList<T extends any[]>(
+  items: RecordModel[],
+  transform?: ListTransform<T>
+) {
+  return transform ? (items.map(transform) as T) : (items as T);
+}
+
+function cast<T>(item: RecordModel, transform?: Transform<T>) {
+  return transform ? transform(item) : (item as T);
+}
+
 abstract class PBWritable {
   static baseUrl: string | null = null;
   private static pb: PocketBase | null = null;
@@ -52,7 +67,7 @@ abstract class PBWritable {
   }
 
   /**
-   *
+   * Creates a simple writable Svelte store for a single Pocketbase entry.
    * @param collectionName the name of the pocketbase colleciton
    * @param id the id of the pocketbase record to subscribe to
    * @param transform (optional) transform that is called everytime a new element is set in the store
@@ -61,7 +76,7 @@ abstract class PBWritable {
   static async create<T>(
     collectionName: string,
     id: string,
-    transform?: (r: RecordModel) => T
+    transform?: Transform<T>
   ) {
     if (!this.pb) {
       console.error(ERROR_INIT);
@@ -69,16 +84,54 @@ abstract class PBWritable {
     }
 
     const initialRecord = await this.pb.collection(collectionName).getOne(id);
-    const store = writable<T>(
-      transform ? transform(initialRecord) : (initialRecord as T)
-    );
+    const store = writable<T>(cast<T>(initialRecord));
 
     this.pb.collection(collectionName).unsubscribe(id);
     this.pb.collection(collectionName).subscribe(id, async () => {
       const newRecord = await this.pb?.collection(collectionName).getOne(id);
       if (newRecord) {
-        store.set(transform ? transform(newRecord) : (newRecord as T));
+        store.set(cast<T>(newRecord));
       }
+    });
+
+    return store;
+  }
+
+  /**
+   * Creates a simple writable Svelte store for a complete Pocketbase collection.
+   * By default the whole collection is reset everytime anything changes in the database
+   * @param collectionName the name of the pocketbase collection
+   * @param options a combination of the normal RecordListOptions but it includes page and perPage variables as well
+   * @param transform (optional) transform that is called everytime a new element is set in the store
+   * @returns a default Svelte writable
+   */
+  static async createList<T extends any[]>(
+    collectionName: string,
+    options?: RecordListOptions & { page?: number; perPage?: number },
+    transform?: ListTransform<T>
+  ) {
+    if (!this.pb) {
+      console.error(ERROR_INIT);
+      return writable<T>();
+    }
+
+    const page = options?.page ?? -1;
+    const perPage = options?.perPage ?? -1;
+    const getAll = page === -1 || perPage === -1;
+
+    const collection = this.pb.collection(collectionName);
+
+    const list = getAll
+      ? await collection.getFullList(options)
+      : (await collection.getList(page, perPage, options)).items;
+    const store = writable<T>(castList<T>(list));
+
+    this.pb.collection(collectionName).unsubscribe("*");
+    this.pb.collection(collectionName).subscribe("*", async () => {
+      const list = getAll
+        ? await collection.getFullList(options)
+        : (await collection.getList(page, perPage, options)).items;
+      store.set(castList<T>(list));
     });
 
     return store;
