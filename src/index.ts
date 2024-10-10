@@ -1,5 +1,5 @@
 import PocketBase, { RecordListOptions, type RecordModel } from "pocketbase";
-import { writable } from "svelte/store";
+import { writable, type Writable } from "svelte/store";
 
 const ERROR_CREATE_PB =
   "Something went wrong during instantiation of the Pocketbase instance. Do you have the correct url?";
@@ -15,6 +15,16 @@ const ERROR_REMOVE = "Something went wrong trying to remove a record.";
 
 export type ListTransform<T extends any[]> = (r: RecordModel) => T[number];
 export type Transform<T> = (r: RecordModel) => T;
+export type SingleReturnType<T> = [
+  Writable<T>,
+  (changes: Record<string, any>) => Promise<boolean>
+];
+export type ListReturnType<T> = [
+  Writable<T>,
+  (id: string, changes: Record<string, any>) => Promise<boolean>,
+  (item: T) => Promise<string>,
+  (id: string) => Promise<Boolean>
+];
 
 function castList<T extends any[]>(
   items: RecordModel[],
@@ -123,7 +133,7 @@ abstract class PBWritable {
       }
     });
 
-    return [store, update];
+    return [store, update] as SingleReturnType<T>;
   }
 
   /**
@@ -191,7 +201,7 @@ abstract class PBWritable {
       store.set(castList<T>(list, transform));
     });
 
-    return [store, update, create, remove];
+    return [store, update, create, remove] as ListReturnType<T>;
   }
 }
 
