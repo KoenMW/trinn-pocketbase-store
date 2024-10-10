@@ -9,6 +9,9 @@ Note: for right now this is read-only. Updating is planned for later.
 You NEED to use Svelte and have an instance of PocketBase you can access.
 
 ```ts
+//You always have to connect to a PB instance first. Username and password are optional.
+await PBWritable.connect("POCKETBASE_URL", "USERNAME", "PASSWORD");
+
 //You can create a store for a single record
 const word = await PBWritable.create<Word>("COLLECTION_NAME", "RECORD_ID");
 
