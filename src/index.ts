@@ -152,3 +152,5 @@ abstract class PBWritable {
     return store;
   }
 }
+
+export default PBWritable;
