@@ -9,6 +9,9 @@ const ERROR_INIT =
   "Please initialize the library first using PBWritable.init before using any method";
 const ERROR_SUBSCRIPTION =
   "Something went wrong during unsubscription of pocketbase collection. How did you manage this?!";
+const ERROR_UPDATE = "Something went wrong trying to update a record.";
+const ERROR_CREATE = "Something went wrong trying to create a record.";
+const ERROR_REMOVE = "Something went wrong trying to remove a record.";
 
 export type ListTransform<T extends any[]> = (r: RecordModel) => T[number];
 export type Transform<T> = (r: RecordModel) => T;
@@ -86,7 +89,7 @@ abstract class PBWritable {
    * @param collectionName the name of the pocketbase colleciton
    * @param id the id of the pocketbase record to subscribe to
    * @param transform (optional) transform that is called everytime a new element is set in the store
-   * @returns a default Svelte writable
+   * @returns [Svelte store, update method]
    */
   static async create<T>(
     collectionName: string,
@@ -97,19 +100,30 @@ abstract class PBWritable {
       console.error(ERROR_INIT);
       return writable<T>();
     }
+    const collection = this.pb.collection(collectionName);
 
-    const initialRecord = await this.pb.collection(collectionName).getOne(id);
-    const store = writable<T>(cast<T>(initialRecord));
+    const update = async (changes: Record<string, any>) => {
+      try {
+        await collection.update(id, changes);
+        return true;
+      } catch {
+        console.error(ERROR_UPDATE);
+        return false;
+      }
+    };
 
-    this.pb.collection(collectionName).unsubscribe(id);
-    this.pb.collection(collectionName).subscribe(id, async () => {
-      const newRecord = await this.pb?.collection(collectionName).getOne(id);
+    const initialRecord = await collection.getOne(id);
+    const store = writable<T>(cast<T>(initialRecord, transform));
+
+    collection.unsubscribe(id);
+    collection.subscribe(id, async () => {
+      const newRecord = await collection.getOne(id);
       if (newRecord) {
-        store.set(cast<T>(newRecord));
+        store.set(cast<T>(newRecord, transform));
       }
     });
 
-    return store;
+    return [store, update];
   }
 
   /**
@@ -118,7 +132,7 @@ abstract class PBWritable {
    * @param collectionName the name of the pocketbase collection
    * @param options a combination of the normal RecordListOptions but it includes page and perPage variables as well
    * @param transform (optional) transform that is called everytime a new element is set in the store
-   * @returns a default Svelte writable
+   * @returns [Svelte store, update method, create method, remove method]
    */
   static async createList<T extends any[]>(
     collectionName: string,
@@ -129,27 +143,55 @@ abstract class PBWritable {
       console.error(ERROR_INIT);
       return writable<T>();
     }
+    const collection = this.pb.collection(collectionName);
+
+    const update = async (id: string, changes: Record<string, any>) => {
+      try {
+        await collection.update(id, changes);
+        return true;
+      } catch {
+        console.error(ERROR_UPDATE);
+        return false;
+      }
+    };
+
+    const remove = async (id: string) => {
+      try {
+        return await collection.delete(id);
+      } catch {
+        console.error(ERROR_UPDATE);
+        return false;
+      }
+    };
+
+    const create = async (item: T[number]) => {
+      try {
+        const record = await collection.create(item);
+        return record?.id ?? null;
+      } catch {
+        console.error(ERROR_CREATE);
+        return null;
+      }
+    };
 
     const page = options?.page ?? -1;
     const perPage = options?.perPage ?? -1;
     const getAll = page === -1 || perPage === -1;
 
-    const collection = this.pb.collection(collectionName);
-
     const list = getAll
       ? await collection.getFullList(options)
       : (await collection.getList(page, perPage, options)).items;
-    const store = writable<T>(castList<T>(list));
+    const store = writable<T>(castList<T>(list, transform));
 
-    this.pb.collection(collectionName).unsubscribe("*");
-    this.pb.collection(collectionName).subscribe("*", async () => {
+    collection.unsubscribe("*");
+    collection.subscribe("*", async () => {
       const list = getAll
         ? await collection.getFullList(options)
         : (await collection.getList(page, perPage, options)).items;
-      store.set(castList<T>(list));
+      store.set(castList<T>(list, transform));
     });
 
-    return store;
+    return [store, update, create, remove];
   }
 }
 

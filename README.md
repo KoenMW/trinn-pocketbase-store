@@ -13,15 +13,22 @@ You NEED to use Svelte and have an instance of PocketBase you can access.
 await PBWritable.connect("POCKETBASE_URL", "USERNAME", "PASSWORD");
 
 //You can create a store for a single record
-const word = await PBWritable.create<Word>("COLLECTION_NAME", "RECORD_ID");
+const [word, updateWord] = await PBWritable.create<Word>(
+  "COLLECTION_NAME",
+  "RECORD_ID"
+);
+updateWord({ word: "some change" });
 
 //You can create a store for a complete collection (beware, when the collection changes it is COMPLETELY redownloaded)
-const words = await PBWritable.createList<Word[]>("COLLECTION_NAME");
+const [words, updateWord, createWord, removeWord] = await PBWritable.createList<
+  Word[]
+>("COLLECTION_NAME");
 
 //For lists you can use the existing RecordListOptions from Pocketbase, like filter, sort, etc.
-const lastWords = await PBWritable.createList<Word[]>("COLLECTION_NAME", {
-  sort: "-word",
-  page: 1,
-  perPage: 10,
-});
+const [lastWords, updateLastWord, createLastWord, removeLastWord] =
+  await PBWritable.createList<Word[]>("COLLECTION_NAME", {
+    sort: "-word",
+    page: 1,
+    perPage: 10,
+  });
 ```
