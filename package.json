@@ -1,5 +1,5 @@
 {
-  "name": "trinn-svelte-store",
+  "name": "trinn-pocketbase-store",
   "version": "0.0.1",
   "description": "A simple wrapper for pocketbase tables to svelte stores",
   "main": "index.js",
