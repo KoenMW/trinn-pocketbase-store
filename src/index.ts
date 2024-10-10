@@ -13,6 +13,10 @@ const ERROR_UPDATE = "Something went wrong trying to update a record.";
 const ERROR_CREATE = "Something went wrong trying to create a record.";
 const ERROR_REMOVE = "Something went wrong trying to remove a record.";
 
+const NO_UPDATE = async () => true;
+const NO_REMOVE = NO_UPDATE;
+const NO_CREATE = async () => "";
+
 export type ListTransform<T extends any[]> = (r: RecordModel) => T[number];
 export type Transform<T> = (r: RecordModel) => T;
 export type SingleReturnType<T> = [
@@ -108,7 +112,7 @@ abstract class PBWritable {
   ) {
     if (!this.pb) {
       console.error(ERROR_INIT);
-      return writable<T>();
+      return [writable<T>(), NO_UPDATE] as SingleReturnType<T>;
     }
     const collection = this.pb.collection(collectionName);
 
@@ -151,7 +155,12 @@ abstract class PBWritable {
   ) {
     if (!this.pb) {
       console.error(ERROR_INIT);
-      return writable<T>();
+      return [
+        writable<T>(),
+        NO_UPDATE,
+        NO_CREATE,
+        NO_REMOVE,
+      ] as ListReturnType<T>;
     }
     const collection = this.pb.collection(collectionName);
 
@@ -169,7 +178,7 @@ abstract class PBWritable {
       try {
         return await collection.delete(id);
       } catch {
-        console.error(ERROR_UPDATE);
+        console.error(ERROR_REMOVE);
         return false;
       }
     };
