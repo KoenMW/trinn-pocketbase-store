@@ -7,6 +7,8 @@ const ERROR_AUTH =
   "Something went wrong during login of pocketbase. Please check your credentials";
 const ERROR_INIT =
   "Please initialize the library first using PBWritable.init before using any method";
+const ERROR_SUBSCRIPTION =
+  "Something went wrong during unsubscription of pocketbase collection. How did you manage this?!";
 
 export type ListTransform<T extends any[]> = (r: RecordModel) => T[number];
 export type Transform<T> = (r: RecordModel) => T;
@@ -32,13 +34,13 @@ abstract class PBWritable {
   private constructor() {}
 
   /**
-   * Initializes the global instance of pocketbase we want to use. Currently we only support one instance
+   * Connects to the global instance of pocketbase we want to use. Currently we only support one instance
    * @param pocketBaseUrl the location of your pocketbase instance
    * @param username (optional) if provided, will try to login using this username
    * @param password (optional) if provided, will try to login using this password
    * @returns returns if pocketbase was  correctly created. If credentials are provided, it also returns if login was succesful
    */
-  static async init(
+  static async connect(
     pocketBaseUrl: string,
     username?: string,
     password?: string
@@ -64,6 +66,19 @@ abstract class PBWritable {
     }
 
     return true;
+  }
+
+  static async disconnect(collectionName: string, id: string = "*") {
+    if (!this.pb) {
+      console.error(ERROR_SUBSCRIPTION);
+      return false;
+    }
+    try {
+      await this.pb.collection(collectionName).unsubscribe(id);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
